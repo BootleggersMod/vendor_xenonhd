@@ -1,65 +1,28 @@
 #!/bin/bash
 #
-# Name the zip file and get md5
-# XenonHD
+# Name the XenonHD zip file and get MD5
 
 . $ANDROID_BUILD_TOP/vendor/xenonhd/tools/colors
 
 OUT_TARGET_HOST=`uname -a | grep Darwin`
 if [ -z "$OUT_TARGET_HOST" ]
 then
-   MD5=md5sum
+    MD5=md5sum
 else
-   MD5="md5 -r"
+    MD5="md5 -r"
 fi
 
 # Determine what to name the new signed package
-if [ -z "$XenonHD" ]; then
-	MODVERSION=`sed -n -e'/ro\.xenonhd.version/s/^.*=//p' $OUT/system/build.prop`
-	: ${MODVERSION:=}
-        OTA_TYPE=`sed -n -e'/ro\.ota\.type/s/^.*=//p' $OUT/system/build.prop`
-        : ${OTA_TYPE:=}
-        DEVICE=`sed -n -e'/ro\.ota\.device/s/^.*=//p' $OUT/system/build.prop`
-        : ${DEVICE:=}
-	XENONHD_TARGET_PACKAGE=$MODVERSION-$DEVICE.zip
-	OUTFILE=$OUT/$XENONHD_TARGET_PACKAGE
-else
-	XENONHD_TARGET_PACKAGE=xenonhd-squished.zip
-	OUTFILE=$OUT/$XENONHD_TARGET_PACKAGE
-fi
+MODVERSION=`sed -n -e'/ro\.xenonhd\.version/s/^.*=//p' $OUT/system/build.prop` : ${MODVERSION:=}
+OTA_TYPE=`sed -n -e'/ro\.ota\.type/s/^.*=//p' $OUT/system/build.prop` : ${OTA_TYPE:=}
+DEVICE=`sed -n -e'/ro\.ota\.device/s/^.*=//p' $OUT/system/build.prop` : ${DEVICE:=}
 
-# Create OTA XML file
-if [ -f $ANDROID_BUILD_TOP/ota_conf ]; then
-cat >$OUT/ota_nougat_$DEVICE.xml <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<XenonOTA xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ota.xsd">
-    <Stable>
-        <$DEVICE>
-            <Filename>$MODVERSION</Filename>
-            <RomUrl
-                id="rom"
-                title="ROM"
-                description="Download the latest build">https://mirrors.c0urier.net/android/teamhorizon/N/$OTA_TYPE/$DEVICE/$XENONHD_TARGET_PACKAGE</RomUrl>
-            <MD5Url
-                id="md5"
-                title="MD5"
-                description="Download MD5 of the latest build">https://mirrors.c0urier.net/android/teamhorizon/N/$OTA_TYPE/$DEVICE/$XENONHD_TARGET_PACKAGE.md5sum</MD5Url>
-            <ChangelogUrl
-                id="changelog"
-                title="Changelog"
-                description="View the latest changelog">https://mirrors.c0urier.net/android/teamhorizon/N/$OTA_TYPE/$DEVICE/Changelog.txt</ChangelogUrl>
-            <OpenGappsUrl
-                id="opengapps"
-                title="Open Gapps"
-                description="Download Open Gapps">http://opengapps.org</OpenGappsUrl>
-            <ExtrasUrl
-                id="extras"
-                title="Extras"
-                description="Download Extras">https://download.lineageos.org/extras</ExtrasUrl>
-        </$DEVICE>
-    </Stable>
-</XenonOTA>
-EOF
+if [ -z "$XenonHD" ]; then
+    XENONHD_TARGET_PACKAGE=$MODVERSION-$DEVICE.zip
+    OUTFILE=$OUT/$XENONHD_TARGET_PACKAGE
+else
+    XENONHD_TARGET_PACKAGE=xenonhd-squished.zip
+    OUTFILE=$OUT/$XENONHD_TARGET_PACKAGE
 fi
 
 # Create a md5 checksum image of the repacked package
@@ -76,3 +39,34 @@ echo -e ${cya}"md5:"${cya}" $(cat $XENONHD_TARGET_PACKAGE.md5sum | awk '{ print 
 echo -e ${cya}"size:"${cya}" $ZIPSIZE"${txtrst}
 echo -e ${cya}"========================================"${txtrst}
 )
+
+# Create OTA XML file
+ANDROID=`sed -n -e'/ro\.build\.version\.release/s/^.*=//p' $OUT/system/build.prop` : ${ANDROID:=}
+DATE=`sed -n -e'/ro\.ota\.version/s/^.*=//p' $OUT/system/build.prop` : ${DATE:=}
+MAINTAINER=`sed -n -e'/ro\.xenonhd\.maintainer/s/^.*=//p' $OUT/system/build.prop` : ${MAINTAINER:=}
+MD5=`echo -e "$(cat $XENONHD_TARGET_PACKAGE.md5sum | awk '{ print $1 }')"`: ${MD5:=}
+SIZE=`wc -c < $XENONHD_TARGET_PACKAGE` : ${SIZE:=}
+
+cat >$OUT/ota_nougat_$DEVICE.xml <<EOF
+<ROM>
+    <RomName>XenonHD</RomName>
+    <VersionName>$MODVERSION</VersionName>
+    <VersionNumber type="integer">$DATE</VersionNumber>
+    <DirectUrl>https://mirrors.c0urier.net/android/teamhorizon/N/$OTA_TYPE/$DEVICE/$XENONHD_TARGET_PACKAGE</DirectUrl>
+    <HttpUrl>XenonHD Downloads</HttpUrl>
+    <Android>$ANDROID</Android>
+    <Developer>$MAINTAINER</Developer>
+    <WebsiteURL>http://xenonhd.com/</WebsiteURL>
+    <DonateURL>https://goo.gl/3z5jHW</DonateURL>
+    <Changelog>https://mirrors.c0urier.net/android/teamhorizon/N/$OTA_TYPE/$DEVICE/Changelog.txt</Changelog>
+
+    <!-- You can disable MD5 checking like this: <CheckMD5 nil="true" />-->
+    <CheckMD5>$MD5</CheckMD5>
+    <!--Please enter this in BYTES only. Otherwise an incorrect value will be shown-->
+    <FileSize type="integer">$SIZE</FileSize>
+
+    <!--Number of addons and the target addons xml. Remove both if no addons available! -->
+    <AddonCount>2</AddonCount>
+    <AddonsURL>https://mirrors.c0urier.net/android/teamhorizon/N/OTA/addons.xml</AddonsURL>
+</ROM>
+EOF
